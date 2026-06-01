@@ -14,7 +14,7 @@ Tìm hiểu tổng quan về Infrastructure as Code (IaC) và cú pháp cơ bả
 
 **Evidence:**
 
-![Terraform Init](/screenshots/W8-D1-terraform-init-success.png)
+![Terraform Init](screenshots/W8-D1-terraform-init-success.png)
 
 ### 2. Thực hành Variable và Output
 
@@ -23,7 +23,7 @@ Tìm hiểu tổng quan về Infrastructure as Code (IaC) và cú pháp cơ bả
 
 **Evidence:**
 
-![Variable Output](/screenshots/W8-D1-02-hcl-variable-output.png)
+![Variable Output](screenshots/W8-D1-02-hcl-variable-output.png)
 
 ### 3. Thực hành Provider và Resource
 
@@ -33,9 +33,9 @@ Tìm hiểu tổng quan về Infrastructure as Code (IaC) và cú pháp cơ bả
 
 **Evidence:**
 
-![Local Provider](/screenshots/W8-D1-03-local-provider-config.png)
+![Local Provider](screenshots/W8-D1-03-local-provider-config.png)
 
-![Resource Creation](/screenshots/W8-D1-04-local-file-resource-created.png)
+![Resource Creation](screenshots/W8-D1-04-local-file-resource-created.png)
 
 ### 4. Tìm hiểu Terraform State
 
