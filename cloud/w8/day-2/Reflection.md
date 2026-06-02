@@ -4,6 +4,8 @@
 
 Tìm hiểu kiến thức nền tảng về Container và Kubernetes Orchestration. Làm quen với các khái niệm cơ bản trong Kubernetes như Pod, Service, ConfigMap, Secret và Network Policy. Cài đặt môi trường thực hành gồm Docker Desktop, Minikube và Kubectl.
 
+---
+
 ## Những gì đã thực hiện
 
 ### 1. Tìm hiểu về Container và Kubernetes
@@ -24,41 +26,87 @@ Tìm hiểu kiến thức nền tảng về Container và Kubernetes Orchestrati
 * Cài đặt Docker Desktop.
 * Cài đặt Kubectl để quản lý Kubernetes Cluster.
 * Cài đặt Minikube để chạy Kubernetes trên máy cá nhân.
-* Kiểm tra phiên bản các công cụ sau khi cài đặt.
+* Khởi động thành công Kubernetes Cluster bằng Minikube với Docker Driver.
+* Kiểm tra trạng thái Cluster và các thành phần hệ thống Kubernetes.
+
+#### Evidence: Docker Version
+
+![Docker Version](./screenshots/W8-D2-docker-version.png)
+
+#### Evidence: Kubectl Version
+
+![Kubectl Version](./screenshots/W8-D2-kubectl-version.png)
+
+#### Evidence: Minikube Start
+
+![Minikube Start](./screenshots/W8-D2-minikube-start.png)
 
 ### 4. Làm quen với Kubectl
 
 * Tìm hiểu chức năng của Kubectl.
-* Thực hành một số lệnh cơ bản:
+* Thực hành các lệnh cơ bản để kiểm tra Cluster:
 
 ```bash
-kubectl version
+kubectl version --client
 kubectl get nodes
-kubectl get pods
+kubectl get pods -A
 ```
+
+* Kiểm tra Node của Cluster ở trạng thái `Ready`.
+* Kiểm tra các Pod hệ thống trong namespace `kube-system` đang hoạt động bình thường.
+
+#### Evidence: Get Nodes
+
+![Get Nodes](./screenshots/W8-D2-kubectl-get-nodes.png)
+
+#### Evidence: Get Pods
+
+![Get Pods](./screenshots/W8-D2-kubectl-get-pods.png)
+
+---
 
 ## Kiến thức đã học được
 
-* Container giúp đóng gói ứng dụng và môi trường chạy thành một đơn vị thống nhất.
-* Kubernetes là nền tảng điều phối container giúp triển khai, quản lý và mở rộng ứng dụng một cách tự động.
-* Pod là đơn vị nhỏ nhất có thể triển khai trong Kubernetes.
-* Service giúp cung cấp địa chỉ truy cập ổn định cho Pod.
-* ConfigMap được sử dụng để lưu cấu hình ứng dụng.
-* Secret được sử dụng để lưu trữ dữ liệu nhạy cảm như mật khẩu hoặc API Key.
-* Network Policy giúp kiểm soát việc giao tiếp giữa các Pod trong Cluster.
+* Container giúp đóng gói ứng dụng và môi trường chạy thành một đơn vị thống nhất, giúp ứng dụng hoạt động nhất quán trên nhiều môi trường khác nhau.
+* Kubernetes là nền tảng điều phối container giúp tự động triển khai, quản lý và mở rộng ứng dụng.
+* Pod là đơn vị triển khai nhỏ nhất trong Kubernetes và có thể chứa một hoặc nhiều container.
+* Service cung cấp cơ chế truy cập ổn định đến các Pod.
+* ConfigMap được sử dụng để lưu trữ cấu hình ứng dụng.
+* Secret được sử dụng để lưu trữ dữ liệu nhạy cảm như mật khẩu, token hoặc API Key.
+* Network Policy giúp kiểm soát và giới hạn lưu lượng mạng giữa các Pod trong Cluster.
 * Kubectl là công cụ dòng lệnh dùng để tương tác với Kubernetes Cluster.
-* Minikube cho phép chạy Kubernetes Cluster cục bộ trên máy tính cá nhân để phục vụ học tập và phát triển.
+* Minikube cho phép tạo và vận hành một Kubernetes Cluster cục bộ trên máy tính cá nhân để học tập và thực hành.
+
+Ngoài ra, em đã hiểu được quy trình cơ bản để khởi động và kiểm tra một Kubernetes Cluster:
+
+```bash
+minikube start --driver=docker
+kubectl get nodes
+kubectl get pods -A
+```
+
+---
 
 ## Khó khăn gặp phải
 
-* Có nhiều khái niệm mới trong Kubernetes nên ban đầu khá khó hình dung mối quan hệ giữa Pod, Service và các thành phần khác.
-* Việc phân biệt ConfigMap và Secret còn chưa thật sự rõ ràng.
-* Cần thêm thời gian thực hành để hiểu cách các thành phần Kubernetes hoạt động cùng nhau trong thực tế.
+* Ban đầu gặp khó khăn khi tìm hiểu các khái niệm mới như Pod, Service, ConfigMap và Secret vì chưa hình dung rõ cách chúng phối hợp với nhau trong thực tế.
+* Việc cài đặt môi trường cần nhiều bước và phải kiểm tra sự tương thích giữa Docker Desktop, Kubectl và Minikube.
+* Chưa thực sự hiểu sâu về Network Policy và cách Kubernetes xử lý networking giữa các Pod.
+* Cần thêm thời gian thực hành để làm quen với các lệnh Kubectl và cấu trúc của Kubernetes Cluster.
+
+---
 
 ## Kế hoạch cho ngày tiếp theo
 
 * Ôn tập lại các khái niệm Kubernetes đã học.
 * Tìm hiểu thêm về Kubernetes Networking và Scaling.
-* Chuẩn bị các câu hỏi liên quan đến Terraform cho buổi Live Session với mentor.
 * Hoàn thành nội dung Terraform State Management, Modules và Best Practices.
+* Chuẩn bị các câu hỏi liên quan đến Terraform cho buổi Live Session với mentor.
+* Luyện tập thêm các lệnh Kubectl để quản lý tài nguyên trong Kubernetes.
 * Chuẩn bị cho Online Test 1.
+
+---
+
+## Kết luận
+
+Hôm nay em đã hoàn thành việc cài đặt thành công môi trường Kubernetes gồm Docker Desktop, Kubectl và Minikube. Đồng thời em cũng nắm được các khái niệm nền tảng của Kubernetes và thực hiện thành công việc khởi động Cluster, kiểm tra Node và Pod bằng Kubectl. Đây là nền tảng quan trọng để em tiếp tục thực hành triển khai ứng dụng trên Kubernetes trong các buổi lab tiếp theo.
