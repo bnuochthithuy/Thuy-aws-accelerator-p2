@@ -89,10 +89,10 @@ resource "kubernetes_config_map" "html" {
           <div class="icon">&#x2638;&#xFE0F;</div>
           <h1>Xin Chao Ban Be!</h1>
           <p class="sub">
-            App dang chay trong <strong>Kubernetes (kind)</strong><br/>
-            tren EC2 &#x2192; expose qua <strong>AWS ALB</strong>
+            App đang chạy trong <strong>Kubernetes (kind)</strong><br/>
+            trên EC2 &#x2192; expose qua <strong>AWS ALB</strong>
           </p>
-          <p class="note">Tu dong hoa 100% bang Terraform &#x1F680; Khong lam tay.</p>
+          <p class="note">Tự động hóa 100% bằng Terraform &#x1F680; Không làm tay.</p>
           <div class="badges">
             <span class="badge">&#x2638; Kubernetes</span>
             <span class="badge">&#x26A1; kind</span>
