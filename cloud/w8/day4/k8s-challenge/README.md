@@ -1,207 +1,228 @@
-# K8s on AWS — Terraform 1-Click
+# K8s trên AWS — Terraform 1-Click
 
-> Dựng EC2 + kind cluster + deploy app + expose qua ALB  
-> Toàn bộ tự động hóa bằng **1 lệnh `terraform apply`**
+## Tổng Quan
+
+Dự án này triển khai môi trường Kubernetes trên AWS bằng Terraform.
+
+**Tính năng:**
+- Hạ tầng AWS được dựng hoàn toàn bằng Terraform
+- Cụm Kubernetes chạy bằng Kind trên EC2
+- Ứng dụng Nginx chạy bên trong Kubernetes
+- Ứng dụng được expose ra Internet qua AWS ALB
+- Kiến trúc đa provider Terraform (AWS + Kubernetes)
 
 ---
 
 ## Sơ Đồ Kiến Trúc
 
 ```
-                        ┌─────────────────────────────────────────┐
-Internet                │           AWS (ap-southeast-1)          │
-   │                    │                                         │
-   │ HTTP :80           │  ┌──────────────────────────────────┐   │
-   ▼                    │  │         VPC 10.10.0.0/16         │   │
-┌──────────┐            │  │                                  │   │
-│ Browser  │──────────► │  │  ┌──────────┐   ┌───────────┐   │   │
-└──────────┘            │  │  │  Subnet  │   │  Subnet   │   │   │
-                        │  │  │  AZ-1a   │   │  AZ-1b    │   │   │
-                        │  │  └────┬─────┘   └─────┬─────┘   │   │
-                        │  │       │               │          │   │
-                        │  │  ┌────▼───────────────▼──────┐   │   │
-                        │  │  │      AWS ALB (HTTP :80)   │   │   │
-                        │  │  └────────────┬──────────────┘   │   │
-                        │  │               │ :30080 NodePort   │   │
-                        │  │  ┌────────────▼──────────────┐   │   │
-                        │  │  │   EC2 t3.medium            │   │   │
-                        │  │  │   Ubuntu 22.04             │   │   │
-                        │  │  │                            │   │   │
-                        │  │  │  ┌──────────────────────┐  │   │   │
-                        │  │  │  │   kind cluster        │  │   │   │
-                        │  │  │  │   API: port 6443      │  │   │   │
-                        │  │  │  │                       │  │   │   │
-                        │  │  │  │  K8s Service          │  │   │   │
-                        │  │  │  │  NodePort :30080      │  │   │   │
-                        │  │  │  │       │               │  │   │   │
-                        │  │  │  │  ┌────┴────┐          │  │   │   │
-                        │  │  │  │  │  Pod 1  │          │  │   │   │
-                        │  │  │  │  │  nginx  │          │  │   │   │
-                        │  │  │  │  └─────────┘          │  │   │   │
-                        │  │  │  │  ┌─────────┐          │  │   │   │
-                        │  │  │  │  │  Pod 2  │          │  │   │   │
-                        │  │  │  │  │  nginx  │          │  │   │   │
-                        │  │  │  │  └─────────┘          │  │   │   │
-                        │  │  │  └──────────────────────┘  │   │   │
-                        │  │  └───────────────────────────┘   │   │
-                        │  └──────────────────────────────────┘   │
-                        └─────────────────────────────────────────┘
-
-Provider 1: hashicorp/aws        → VPC, EC2, ALB, Security Groups
-Provider 2: hashicorp/kubernetes → ConfigMap, Deployment, Service
+Internet
+     ↓ ALB :80
+     ↓ EC2 :30080
+     ↓ Kind Cluster
+     ↓ NodePort Service
+     ↓ Nginx Pods
 ```
+
+![Sơ đồ kiến trúc](screenshort/06-architecture-diagram.png)
 
 ---
 
 ## Cách Wire Provider
 
-### Vấn đề
+### Provider 1 — AWS
+Chịu trách nhiệm:
+- VPC
+- Public Subnets
+- Security Groups
+- EC2
+- Application Load Balancer
 
-Terraform cần kết nối vào K8s cluster trên EC2 **trong cùng 1 apply**, nhưng EC2 chưa tồn tại lúc bắt đầu. Đây là bài toán chicken-and-egg: `kubernetes` provider cần địa chỉ cluster, cluster chỉ có sau khi EC2 boot xong.
+### Provider 2 — Kubernetes
+Chịu trách nhiệm:
+- Deployment
+- Service
 
-### Giải pháp: Bridge qua file kubeconfig
+**Luồng thực thi Terraform:**
 
 ```
 terraform apply
-│
-├─ [Provider 1: AWS]
-│   aws_instance.k8s
-│   └── user_data: cài Docker + kind → cluster sẵn sàng
-│         ↓
-│   null_resource.wait_for_kind
-│   └── remote-exec: SSH vào EC2, poll "kubectl get nodes" cho đến Ready
-│         ↓
-│   null_resource.fetch_kubeconfig
-│   └── local-exec: SSH copy /root/.kube/config → output/kubeconfig.yaml
-│         (patch 0.0.0.0 → EC2 public IP)
-│
-└─ [Provider 2: Kubernetes]
-    đọc output/kubeconfig.yaml
-    └── kubernetes_config_map  (HTML content)
-        kubernetes_deployment  (2 nginx pods)
-        kubernetes_service     (NodePort :30080)
+        │
+        ▼
+AWS Provider
+        │
+        ▼
+EC2 + Kind Cluster
+        │
+        ▼
+Kubernetes Provider
+        │
+        ▼
+Deployment + Service
 ```
 
-### Code wire trong `providers.tf`
+**Cơ chế wire hoạt động như thế nào:**
+
+`kubernetes` provider cần kết nối vào cluster chưa tồn tại lúc bắt đầu `plan`. Cầu nối là file kubeconfig được fetch về máy local qua SSH:
+
+1. `aws_instance` khởi động với `user_data` → cài Docker + kind → cluster sẵn sàng
+2. `null_resource.wait_for_kind` → SSH vào EC2, poll `kubectl get nodes` cho đến khi `Ready`
+3. `null_resource.fetch_kubeconfig` → SSH copy `/root/.kube/config` về `output/kubeconfig.yaml` (patch `0.0.0.0` → EC2 public IP)
+4. `kubernetes` provider đọc `output/kubeconfig.yaml` → kết nối vào kind API trên port `6443`
+5. `kubernetes_deployment` + `kubernetes_service` được tạo
 
 ```hcl
-locals {
-  kubeconfig_path = "${path.module}/output/kubeconfig.yaml"
-  kubeconfig = fileexists(local.kubeconfig_path)
-              ? yamldecode(file(local.kubeconfig_path))
-              : null
-}
-
 provider "kubernetes" {
-  # host lấy từ kubeconfig đã fetch về — EC2 public IP:6443
-  host     = local.kubeconfig["clusters"][0]["cluster"]["server"]
-  insecure = true  # kind cert chỉ valid cho internal IP, không cho public IP
-
-  client_certificate = base64decode(
-    local.kubeconfig["users"][0]["user"]["client-certificate-data"]
-  )
-  client_key = base64decode(
-    local.kubeconfig["users"][0]["user"]["client-key-data"]
-  )
+  host     = yamldecode(file("output/kubeconfig.yaml"))["clusters"][0]["cluster"]["server"]
+  insecure = true  # kind cert không có SAN cho public IP
+  client_certificate = base64decode(...)
+  client_key         = base64decode(...)
 }
 ```
 
-**Tại sao `insecure = true`?**  
-kind tự ký TLS cert chỉ ghi SAN cho internal IPs (`172.18.0.2`, `0.0.0.0`). Khi connect từ ngoài qua public IP, cert không match → skip TLS verify.
-
-**Tại sao dùng file thay vì SSM / environment variable?**  
-`provider` config được evaluate lúc `plan`, trước khi bất kỳ resource nào chạy. File là cách duy nhất để truyền dữ liệu từ apply trước sang provider config mà không cần thêm infra phụ.
+> **Tại sao `insecure = true`?**  
+> kind tự ký TLS cert chỉ ghi SAN cho internal IP (`172.18.0.2`, `0.0.0.0`).  
+> Kết nối từ ngoài qua public IP khiến cert không match → cần bỏ qua xác thực TLS.
 
 ---
 
-## Yêu Cầu
+## Triển Khai
 
-- Terraform >= 1.5.0
-- AWS CLI đã configure (`aws configure`)
-- SSH client (có sẵn trên Windows 10+)
-- Quyền IAM: EC2, VPC, ALB, SG
-
----
-
-## Lệnh Chạy
-
-### Deploy (1-click)
+**Khởi tạo Terraform:**
 
 ```bash
-cd cloud/w8/day4/k8s-challenge
-
-# Bước 1: Init providers
 terraform init
-
-# Bước 2: Deploy toàn bộ hạ tầng + K8s app
-terraform apply
-# gõ "yes" khi được hỏi
 ```
 
-Quá trình:
-```
-0–1 phút   → Tạo VPC, SG, ALB, EC2
-1–3 phút   → EC2 boot, cài Docker + kind (user_data chạy ngầm)
-3–5 phút   → Terraform SSH poll node Ready, fetch kubeconfig
-5–6 phút   → Deploy K8s ConfigMap, Deployment, Service
-```
-
-Kết quả sau khi xong:
-```
-alb_url = "http://<alb-dns>.ap-southeast-1.elb.amazonaws.com"
-```
-
-**Chờ thêm 1–2 phút** để ALB health check xanh, sau đó mở URL trên browser.
-
-### Kiểm Tra
+**Xem trước các thay đổi:**
 
 ```bash
-# Xem tất cả outputs
-terraform output
+terraform plan
+```
 
-# SSH vào EC2 debug
-ssh -i output/k8s-challenge-key.pem ubuntu@<EC2_IP>
+**Bằng chứng:**
 
-# Trên EC2: kiểm tra K8s
-sudo kubectl --kubeconfig /root/.kube/config get pods
+![Terraform Plan](screenshort/07-terraform-plan-no-changes.png)
+
+**Triển khai hạ tầng và ứng dụng:**
+
+```bash
+terraform apply
+```
+
+**Kết quả mong đợi:**
+
+```
+Apply complete! Resources: X added, 0 changed, 0 destroyed.
+```
+
+**Bằng chứng:**
+
+![Terraform Apply Thành Công](screenshort/01-terraform-apply-success.png)
+
+---
+
+## Kiểm Tra
+
+### Kiểm tra Kubernetes Node
+
+**Lệnh:**
+```bash
+sudo kubectl --kubeconfig /root/.kube/config get nodes
+```
+
+**Kết quả mong đợi:**
+```
+hello-k8s-control-plane   Ready
+```
+
+**Bằng chứng:**
+
+![Kind Cluster Nodes](screenshort/02-kind-cluster-nodes.png)
+
+---
+
+### Kiểm tra Pod đang chạy
+
+**Lệnh:**
+```bash
+sudo kubectl --kubeconfig /root/.kube/config get pods -o wide
+```
+
+**Kết quả mong đợi:**
+
+2 nginx pod ở trạng thái `Running`
+
+**Bằng chứng:**
+
+![Nginx Pods Running](screenshort/03-nginx-pods-running.png)
+
+---
+
+### Kiểm tra Service
+
+**Lệnh:**
+```bash
 sudo kubectl --kubeconfig /root/.kube/config get svc
 ```
 
-### Destroy (dọn sạch)
+**Kết quả mong đợi:**
+```
+hello-k8s-svc   NodePort   80:30080/TCP
+```
+
+**Bằng chứng:**
+
+![NodePort Service](screenshort/04-nodeport-service.png)
+
+---
+
+### Kiểm tra truy cập ứng dụng
+
+**Lấy URL của ALB:**
+```bash
+terraform output alb_url
+```
+
+**Mở trên trình duyệt:**
+```
+http://<alb-url>
+```
+
+**Kết quả mong đợi:**
+
+Trang ứng dụng hiển thị thành công
+
+**Bằng chứng:**
+
+![Truy cập qua ALB](screenshort/05-alb-access-nginx.png)
+
+---
+
+## Outputs
+
+Xem tất cả outputs:
+
+```bash
+terraform output
+```
+
+Các giá trị có sẵn:
+```
+alb_url
+ec2_public_ip
+ssh_command
+kubeconfig_path
+```
+
+---
+
+## Dọn Dẹp
+
+**Xóa toàn bộ tài nguyên AWS:**
 
 ```bash
 terraform destroy
-# gõ "yes" khi được hỏi
 ```
 
----
-
-## Cấu Trúc File
-
-```
-k8s-challenge/
-├── versions.tf          — khai báo providers (aws, kubernetes, tls, local, null)
-├── providers.tf         — wire AWS + Kubernetes provider
-├── variables.tf         — các biến (region, instance_type, node_port...)
-├── networking.tf        — VPC, 2 public subnets, IGW, route table
-├── security_groups.tf   — SG cho ALB (:80) và EC2 (:22, :6443, :30080)
-├── ec2.tf               — EC2, SSH key, wait_for_kind, fetch_kubeconfig
-├── alb.tf               — ALB, Target Group, Listener
-├── k8s_app.tf           — ConfigMap, Deployment, Service
-├── outputs.tf           — alb_url, ssh_command, k8s_info
-├── templates/
-│   └── user_data.sh.tpl — script EC2 boot: cài Docker + kind
-└── output/              — SSH key + kubeconfig (tự sinh, không commit)
-```
-
----
-
-## Giải Thích Thiết Kế
-
-| Quyết định | Lý do |
-|---|---|
-| Dùng **kind** thay minikube | Nhẹ hơn, chạy trong Docker, không cần VM driver, startup ~90s |
-| **NodePort** thay Ingress | Đơn giản nhất để wire ALB với 1 EC2, không cần cài ingress-nginx |
-| **SSH fetch kubeconfig** thay SSM | Không cần IAM role, không giới hạn 4096 ký tự, không tốn phí SSM Advanced |
-| **`insecure = true`** trong K8s provider | kind cert không có SAN cho public IP — giải pháp đúng cho lab |
-| `apiServerPort: 6443` cố định | Tránh port random của kind, SG chỉ cần mở 1 port cụ thể |
+> **Lưu ý quan trọng:** Luôn destroy tài nguyên sau khi kiểm tra xong để tránh phát sinh chi phí AWS.
