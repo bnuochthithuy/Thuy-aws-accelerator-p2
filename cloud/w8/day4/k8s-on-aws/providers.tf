@@ -1,13 +1,28 @@
 ##############################################################
-# providers.tf
-# Wire 2 provider trong cùng 1 cấu hình Terraform:
-#   1. AWS provider  — dựng hạ tầng (VPC, EC2, ALB)
-#   2. Kubernetes provider — deploy app vào kind cluster trên EC2
+# providers.tf — Wire 4 provider trong 1 terraform apply
 #
-# Cách wire: kubernetes provider lấy kubeconfig từ file
-# được EC2 user_data tạo ra và copy ra ngoài qua SSM Parameter.
-# Terraform dùng `depends_on` + `data.aws_ssm_parameter` để
-# chờ EC2 hoàn tất setup trước khi gọi kubernetes provider.
+# Luồng wire:
+#
+#   http provider
+#     → data.http.my_ip  (GET https://checkip.amazonaws.com)
+#     → local.my_cidr    ("1.2.3.4/32")
+#     → aws_security_group.ec2 ingress SSH rule
+#       (chỉ cho phép IP của máy đang chạy Terraform SSH vào EC2)
+#
+#   tls provider
+#     → tls_private_key.ssh   (RSA 4096)
+#     → aws_key_pair.main     (public key lên AWS)
+#     → local_sensitive_file  (private key ra output/*.pem)
+#
+#   local provider
+#     → local_sensitive_file.private_key
+#       (ghi .pem với permission 0600 — dùng để SSH debug)
+#
+#   aws provider
+#     → VPC, Subnet, IGW, Route Table
+#     → Security Groups (ALB + EC2)
+#     → EC2 instance (chạy minikube + deploy app qua user_data)
+#     → ALB → Target Group → Listener
 ##############################################################
 
 provider "aws" {
@@ -15,22 +30,17 @@ provider "aws" {
 
   default_tags {
     tags = {
-      Project     = var.project_name
-      ManagedBy   = "Terraform"
-      Environment = "lab"
+      Project   = var.project_name
+      ManagedBy = "Terraform"
+      Env       = "lab"
     }
   }
 }
 
-# Kubernetes provider được wire vào kind cluster chạy trên EC2.
-# kubeconfig được EC2 push lên SSM Parameter Store sau khi kind sẵn sàng.
-# Terraform đọc SSM → decode → truyền vào kubernetes provider.
-provider "kubernetes" {
-  host                   = yamldecode(data.aws_ssm_parameter.kubeconfig.value)["clusters"][0]["cluster"]["server"]
-  cluster_ca_certificate = base64decode(yamldecode(data.aws_ssm_parameter.kubeconfig.value)["clusters"][0]["cluster"]["certificate-authority-data"])
-  token                  = yamldecode(data.aws_ssm_parameter.kubeconfig.value)["users"][0]["user"]["token"]
-}
+# http provider: lấy public IP của máy đang chạy Terraform
+# Dùng để tạo SSH ingress rule chỉ cho phép IP này
+provider "http" {}
 
 provider "tls" {}
+
 provider "local" {}
-provider "time" {}

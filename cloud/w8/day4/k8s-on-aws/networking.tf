@@ -1,5 +1,9 @@
 ##############################################################
-# networking.tf — VPC, Subnets, IGW, Routes
+# networking.tf — VPC, Subnets, IGW, Route Table
+#
+# Tự dựng VPC riêng (không dùng default VPC):
+#   - 2 public subnets ở 2 AZ (ALB yêu cầu >= 2 AZ)
+#   - Internet Gateway + Route Table public
 ##############################################################
 
 data "aws_availability_zones" "available" {
@@ -8,19 +12,19 @@ data "aws_availability_zones" "available" {
 
 # ── VPC ──────────────────────────────────────────────────────
 resource "aws_vpc" "main" {
-  cidr_block           = "10.0.0.0/16"
+  cidr_block           = "10.10.0.0/16"
   enable_dns_hostnames = true
   enable_dns_support   = true
 
   tags = { Name = "${var.project_name}-vpc" }
 }
 
-# ── Public Subnets (2 AZ cho ALB — ALB yêu cầu ≥2 AZ) ───────
+# ── 2 Public Subnets (ALB cần >= 2 AZ) ───────────────────────
 resource "aws_subnet" "public" {
   count = 2
 
   vpc_id                  = aws_vpc.main.id
-  cidr_block              = "10.0.${count.index}.0/24"
+  cidr_block              = "10.10.${count.index}.0/24"
   availability_zone       = data.aws_availability_zones.available.names[count.index]
   map_public_ip_on_launch = true
 
@@ -33,7 +37,7 @@ resource "aws_internet_gateway" "main" {
   tags   = { Name = "${var.project_name}-igw" }
 }
 
-# ── Route Table ───────────────────────────────────────────────
+# ── Route Table: 0.0.0.0/0 → IGW ─────────────────────────────
 resource "aws_route_table" "public" {
   vpc_id = aws_vpc.main.id
 

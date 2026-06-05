@@ -1,6 +1,8 @@
 ##############################################################
 # alb.tf — Application Load Balancer
-# ALB → Target Group (EC2 NodePort) → Kind → K8s Service → Pod
+#
+# Flow: Internet :80 → ALB → Target Group → EC2:30080
+#       EC2:30080 → minikube NodePort → K8s Service → Pod
 ##############################################################
 
 resource "aws_lb" "main" {
@@ -8,11 +10,14 @@ resource "aws_lb" "main" {
   internal           = false
   load_balancer_type = "application"
   security_groups    = [aws_security_group.alb.id]
-  subnets            = aws_subnet.public[*].id
+
+  # ALB bắt buộc >= 2 subnet ở 2 AZ khác nhau
+  subnets = aws_subnet.public[*].id
 
   tags = { Name = "${var.project_name}-alb" }
 }
 
+# ── Target Group: forward tới EC2 NodePort ───────────────────
 resource "aws_lb_target_group" "app" {
   name        = "${var.project_name}-tg"
   port        = var.node_port
@@ -35,13 +40,14 @@ resource "aws_lb_target_group" "app" {
   tags = { Name = "${var.project_name}-tg" }
 }
 
-# Đăng ký EC2 instance vào Target Group
+# ── Gắn EC2 vào Target Group ─────────────────────────────────
 resource "aws_lb_target_group_attachment" "ec2" {
   target_group_arn = aws_lb_target_group.app.arn
   target_id        = aws_instance.k8s.id
   port             = var.node_port
 }
 
+# ── Listener: HTTP :80 → forward tới TG ──────────────────────
 resource "aws_lb_listener" "http" {
   load_balancer_arn = aws_lb.main.arn
   port              = 80
