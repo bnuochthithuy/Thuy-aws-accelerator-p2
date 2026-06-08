@@ -1,0 +1,2 @@
+# Thư mục này chứa private key .pem do Terraform sinh ra
+# File .pem đã được .gitignore — không commit key vào git
