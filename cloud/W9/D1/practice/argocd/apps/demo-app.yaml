@@ -1,0 +1,20 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: demo-app
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: 'https://github.com/my-org/my-repo.git' # Trỏ về cùng repo
+    path: 'W9/D1/practice/manifests/demo-app'
+    targetRevision: main
+  destination:
+    server: 'https://kubernetes.default.svc'
+    namespace: demo-namespace # Lưu ý namespace sẽ được tạo qua sync-wave
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+    - CreateNamespace=false # Tắt tính năng tạo tự động để tự quản lý bằng manifest có sync-wave

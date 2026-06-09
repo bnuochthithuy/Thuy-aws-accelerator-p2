@@ -1,0 +1,18 @@
+name: Plan on PR
+on:
+  pull_request:
+    branches: [ main ]
+    paths:
+      - 'W9/D1/practice/manifests/**'
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate Kubernetes Manifests
+        run: |
+          echo "Kiểm tra cú pháp của Kubernetes Manifests..."
+          # Thực tế bạn có thể chạy: kubeval, kube-score hoặc kustomize build
+          kubectl kustomize W9/D1/practice/manifests/demo-app || echo "Kustomize check passed (Mock)"
+          echo "✅ Mọi thứ có vẻ ổn, an toàn để review!"

@@ -1,0 +1,34 @@
+name: Apply on Merge (GitOps push)
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'src/**' # Giả sử có source code thay đổi
+
+jobs:
+  build-and-push-manifest:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Build and Push Docker Image (Mock)
+        run: |
+          echo "Building docker image..."
+          # NEW_TAG=$(git rev-parse --short HEAD)
+          NEW_TAG="v1.0.${{ github.run_number }}"
+          echo "NEW_TAG=$NEW_TAG" >> $GITHUB_ENV
+          echo "Đã push image tag: $NEW_TAG lên registry."
+          
+      - name: Update Kubernetes Manifest
+        run: |
+          echo "Cập nhật image tag trong file deployment.yaml thành ${{ env.NEW_TAG }}"
+          # Thực tế: dùng yq hoặc kustomize edit để update image tag
+          # yq e -i '.spec.template.spec.containers[0].image = "my-registry/demo-app:${{ env.NEW_TAG }}"' W9/D1/practice/manifests/demo-app/deployment.yaml
+          
+      - name: Commit and Push changes
+        run: |
+          echo "Tạo commit mới và push lên Git để ArgoCD đồng bộ..."
+          # git config user.name "github-actions"
+          # git add .
+          # git commit -m "[GitOps] Update image to ${{ env.NEW_TAG }}"
+          # git push

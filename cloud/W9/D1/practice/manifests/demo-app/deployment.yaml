@@ -1,0 +1,22 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: demo-app-deployment
+  namespace: demo-namespace
+  annotations:
+    argocd.argoproj.io/sync-wave: "0" # Chạy sau khi namespace đã được tạo ở wave -1
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: demo-app
+  template:
+    metadata:
+      labels:
+        app: demo-app
+    spec:
+      containers:
+      - name: demo-app
+        image: my-registry/demo-app:v1.0.0 # Tag này sẽ được GitHub Actions apply-on-merge sửa lại khi có push mới
+        ports:
+        - containerPort: 8080
